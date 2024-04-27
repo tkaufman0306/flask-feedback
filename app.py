@@ -5,20 +5,27 @@ from flask_debugtoolbar import DebugToolbarExtension
 from werkzeug.exceptions import Unauthorized
 
 from models import connect_db, db, User, Feedback
-from forms import RegisterForm, LoginForm, FeedbackForm, 
-DeleteForm
+from forms import RegisterForm, LoginForm, FeedbackForm 
+from forms import DeleteForm
+from flask_sqlalchemy import SQLAlchemy
+
 
 app = Flask(__name__)
+
 
 app.config['SQLALCHEMY_DATABASE_URI'] = "postgresql:///flask-feedback"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_ECHO'] = True
 app.config['DEBUG_TB_INTERCEPT_REDIRECTS'] = False
+app.config["SECRET_KEY"] = "shhhhhh"
 
 toolbar = DebugToolbarExtension(app)
 
 connect_db(app)
 
+db = SQLAlchemy(app)
+
+app.app_context().push()
 
 @app.route("/")
 def homepage():
@@ -113,4 +120,32 @@ def remove_user(username):
 
     return redirect("/login")
 
+
+@app.route("/users/<username>/feedback/new", methods=["GET", "POST"])
+def new_feedback(username):
+    """Show add-feedback form and handle it"""
+
+    if "username" not in session or username != session['username']:
+        raise Unauthorized()
+    
+    form = FeedbackForm()
+
+    if form.validate_on_submit():
+        title = form.title.data
+        content = form.content.data
+
+        feedback = Feedback(
+            title=title,
+            content=content,
+            username=username,
+        )
+
+        db.session.add(feedback)
+        db.session.commit()
+
+        return redirect(f"/users/{feedback.username}")
+    
+    else:
+        return render_template("feedback/new.html", form=form)
+    
 
